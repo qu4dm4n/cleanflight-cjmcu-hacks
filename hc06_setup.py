@@ -17,11 +17,11 @@ while True:
         print "Failed opening port"
         continue
 
-    name = raw_input("Enter a unique name for your device (MAX 20 chars):")
+    name = raw_input("Enter a unique name for your device (MAX 20 chars, MIN 5 chars):")
 
-    while len(name) > 20:
-        print "Your name is too long!\n"
-        name = raw_input("Enter a unique name for your device (MAX 20 chars):")
+    while ((len(name) > 20) or (len(name) < 5)):
+        print "Enter a name within the length limits\n"
+        name = raw_input("Enter a unique name for your device (MAX 20 chars, MIN 5 chars):")
 
     print "Setting name to %s" % name
 
