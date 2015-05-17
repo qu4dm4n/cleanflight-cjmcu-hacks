@@ -1,21 +1,16 @@
 from hc06 import *
 import sys
 
-DEFAULT_SERIAL_PORT_PATH = r'/dev/ttyUSB0'
 
-if (len(sys.argv) > 1):
-    DEFAULT_SERIAL_PORT_PATH = argv[1]
-
-
-while True:
+def setup_HC06(port):
     print "\n\n\n\nConnect a dongle and then press ENTER"
     raw_input()
 
-    dongle = hc06Configurator(DEFAULT_SERIAL_PORT_PATH)
+    dongle = hc06Configurator(port)
 
     if (False == dongle.open()):
         print "Failed opening port"
-        continue
+        return
 
     name = raw_input("Enter a unique name for your device (MAX 20 chars, MIN 5 chars):")
 
@@ -27,7 +22,7 @@ while True:
 
     if (False == dongle.setName(name)):
         print "Failed changing name"
-        continue
+        return
 
     pin = raw_input("Enter a 4 digit PIN code for your device:")
 
@@ -38,9 +33,17 @@ while True:
     print "Setting pin to %s" % pin
     if (False == dongle.setPin(pin)):
         print "Failed changing pin"
-        continue
+        return
 
     if (False == dongle.setCleanflightBaudrate()):
         print "Failed changing baudrate"
 
     dongle.close()
+    
+if ("__main__" == __name__):
+    DEFAULT_SERIAL_PORT_PATH = r'/dev/ttyUSB0'
+    
+    if (len(sys.argv) > 1):
+        DEFAULT_SERIAL_PORT_PATH = argv[1]
+    
+    setup_HC06(DEFAULT_SERIAL_PORT_PATH)

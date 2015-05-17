@@ -14,14 +14,9 @@
 # for UBUNTU:
 #   1.  sudo apt-get install bluez python-bluez
 #   2.  bluez-simple-agent hci# xx:xx:xx:xx:xx:xx
-#       a. dash # is local bluetooth device index, find it by running "hcitool
-#       dev" (its probably 0)
+#       a. dash # is local bluetooth device index, find it by running "hcitool" (its probably 0)
 #       b. xx:xx:xx:xx:xx:xx is address of destination bluetooth, find it by turning on the quad and running "hcitool scan"
 #       c. you will be asked about the pin code, enter it
-
-
-# extra info:
-#   Notice this bluetooth library is not ideal for windows since on windows it doesnt support any form of non-blocking mode (settimeout or setblocking), too bad...
 
 
 
@@ -88,15 +83,17 @@ def unpackMessage(msg):
     return {'dataContent': dataContent, 'commandRespond': commandRespond}
 
 
-class quadComm:
-    def __init__(self, address):
-        self.address = address
+class bluetoothQuadComm:
+    def __init__(self):
+        self.address = None
         self.sock = None
 
-    def open(self):
+    def open(self, address):
+        self.address = address
         try:
             self.sock = bluetooth.BluetoothSocket(bluetooth.RFCOMM)
             self.sock.connect((self.address, 1))
+            #self.sock.setblocking(False)
         except bluetooth.BluetoothError:
             self.sock = None
             return False
@@ -106,16 +103,31 @@ class quadComm:
     def close(self):
         self.sock.close()
         self.sock = None
-
+    
+    def isConnected(self):
+        if (None == self.sock):
+            return False
+        
+        return True
+        
     def blockingReceive(self, size):
+        if (not self.isConnected()):
+            return None
+
         data = ''
         while (size > len(data)):
             data += self.sock.recv(size - len(data))
-
+        
         return data
+    
+    def sendData(self, data):
+        if (not self.isConnected()):
+            return False
+        
+        self.sock.send(data)
 
     def getReply(self):
-        if (None == self.sock):
+        if (not self.isConnected()):
             return None
 
         reply = self.blockingReceive(3)
@@ -135,8 +147,54 @@ class quadComm:
 
         return reply
 
+    def recvUntilSentinel(self, sentinel):
+        if (not self.isConnected()):
+            return None
+            
+        data = []
+        while (True):
+            c = self.sock.recv(1)
+            data.append(c)
+            if ''.join(data[-len(sentinel):]).endswith(sentinel):
+                break
+        
+        return ''.join(data[:-len(sentinel)])
+    
+    def sendCli(self, cmdList, saveChanges=False):
+        if (not self.isConnected()):
+            return None
+            
+        for cmd in cmdList:
+            if "exit" in cmd:
+                raise Exception("Exit command is not allowed")
+        
+        self.sendData('#')
+        # Receive until the prompt
+        self.recvUntilSentinel('\r\n# ')
+        respList = []
+        for cmd in cmdList:
+            self.sendData(cmd + "\n")
+            # Receive the command echo
+            self.recvUntilSentinel(cmd+"\r\n")
+            # Receive until the next prompt
+            resp = self.recvUntilSentinel('\r\n# ')
+            respList.append(resp)
+        
+        if saveChanges:
+            self.sendData("save\n")
+            self.recvUntilSentinel("save\r\n")
+            self.recvUntilSentinel("\r\nRebooting")
+            # Although communication should not be interrupted by the reboot, we better wait a few seconds
+            time.sleep(5)
+        else:
+            self.sendData("exit\n")
+            self.recvUntilSentinel("exit\r\n")
+            self.recvUntilSentinel("\r\n\r\n")
+        return respList
+
+    
     def getAPIversion(self):
-        if (None == self.sock):
+        if (not self.isConnected()):
             return None
 
         msg = {}
@@ -144,9 +202,9 @@ class quadComm:
         msg['command'] = MSP_API_VERSION
         msg['data'] = ''
         request = packMessage(msg)
-        self.sock.send(request)
+        self.sendData(request)
         reply = self.getReply()
-
+        
         if (None == reply):
             return None
 
@@ -164,7 +222,7 @@ class quadComm:
         return version
 
     def setMotorsSpeed(self, motorsSpeed):
-        if (None == self.sock):
+        if (not self.isConnected()):
             return False
 
         if (list != type(motorsSpeed)):
@@ -184,12 +242,12 @@ class quadComm:
 
         request = packMessage(msg)
 
-        self.sock.send(request)
+        self.sendData(request)
 
         return True
 
     def getAttitude(self):
-        if (None == self.sock):
+        if (not self.isConnected()):
             return None
 
         msg = {}
@@ -198,7 +256,7 @@ class quadComm:
         msg['data'] = ''
         request = packMessage(msg)
 
-        self.sock.send(request)
+        self.sendData(request)
         reply = self.getReply()
         if (None == reply):
             return None
@@ -217,7 +275,7 @@ class quadComm:
         return attitude
 
     def getRawSensors(self):
-        if (None == self.sock):
+        if (not self.isConnected()):
             return None
 
         msg = {}
@@ -226,7 +284,7 @@ class quadComm:
         msg['data'] = ''
         request = packMessage(msg)
 
-        self.sock.send(request)
+        self.sendData(request)
         reply = self.getReply()
         if (None == reply):
             return None
@@ -258,7 +316,7 @@ class quadComm:
         7: AUX3
         8: AUX4
         """
-        if (None == self.sock):
+        if (not self.isConnected()):
             return False
 
         if (list != type(commands)):
@@ -278,10 +336,95 @@ class quadComm:
 
         request = packMessage(msg)
 
-        self.sock.send(request)
+        self.sendData(request)
 
         return True
 
+
+class usbQuadComm(bluetoothQuadComm):
+    def __init__(self):
+        self.port = None
+        self.baud = None
+        self.serialHandle = None
+
+    def open(self, port, baud=115200):
+        self.port = port
+        self.baud = baud
+        
+        try:
+            self.serialHandle = serial.Serial(port=self.port, baudrate=self.baud, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE, bytesize=serial.EIGHTBITS, timeout=2)
+            self.serialHandle.open()
+
+            if (False == self.serialHandle.isOpen()):
+                return False
+
+            return True
+        except:
+            self.serialHandle = None
+            return False
+
+        return True
+
+    def close(self):
+        self.serialHandle.close()
+        self.serialHandle = None
+    
+    def isConnected(self):
+        if (None == self.serialHandle):
+            return False
+        
+        return True
+        
+    def blockingReceive(self, size):
+        if (not self.isConnected()):
+            return None
+
+        data = ''
+        while (size > len(data)):
+            data += self.serialHandle.read(size - len(data))
+        
+        return data
+    
+    def sendData(self, data):
+        if (not self.isConnected()):
+            return False
+        
+        self.serialHandle.write(data)
+
+    def getReply(self):
+        if (not self.isConnected()):
+            return None
+
+        reply = self.blockingReceive(3)
+        if (not reply.startswith(IN_MSG_PREFIX)):
+            return None
+
+        reply += self.blockingReceive(1)
+        if (len(reply) != 4):
+            return None
+
+        dataSize = ord(reply[-1])
+        # Command byte + data + checksum
+        reply += self.blockingReceive(1 + dataSize + 1)
+
+        if (len(reply) != len(IN_MSG_PREFIX) + 1 + 1 + dataSize + 1):
+            return None
+
+        return reply
+
+    def recvUntilSentinel(self, sentinel):
+        if (not self.isConnected()):
+            return None
+            
+        data = []
+        while (True):
+            c = self.serialHandle.read(1)
+            data.append(c)
+            if ''.join(data[-len(sentinel):]).endswith(sentinel):
+                break
+        
+        return ''.join(data[:-len(sentinel)])
+    
 
 def motorsTest(quad):
     time.sleep(1)
@@ -354,15 +497,91 @@ def RCcommandTest(quad):
     time.sleep(1)
 
 
+def cliTest(quad):
+    reply = quad.sendCli(["version", "version", "help", "version"], True)
+    print reply
+    
+    time.sleep(5)
+    reply = quad.sendCli(["version", "version", "help", "version"])
+    print reply
+    
+def cliGetRelevantParameters(quad):
+    parameters =    ["looptime",
+                    "min_throttle",
+                    "max_throttle",
+                    "min_command",
+                    "rc_rate",
+                    "rc_expo",
+                    "thr_expo",
+                    "roll_rate",
+                    "pitch_rate",
+                    "yaw_rate",
+                    "tpa_rate",
+                    "failsafe_delay",
+                    "mag_declination",
+                    "pid_controller",
+                    "p_pitch",
+                    "i_pitch",
+                    "d_pitch",
+                    "p_roll",
+                    "i_roll",
+                    "d_roll",
+                    "p_yaw",
+                    "i_yaw",
+                    "d_yaw"]
 
-def test_functionality():
-    MY_QUAD_BLUETOOTH_ADDRESS = '20:15:03:31:34:16'
+    getParameters = []
+    for singleParameter in parameters:
+        getParameters.append("get " + singleParameter)
+    
+    reply = quad.sendCli(getParameters + ["feature", "adjrange", "aux"])
+    
+    for singleReply in reply:
+        print singleReply
+    
+    
+def cliCommandsFromFile(quad, fileName):
+    commands = []
+    
+    fileHandle = file(fileName, 'rt')
+    
+    line = fileHandle.readline().replace('\r', '').replace('\n', '')
+    while '' != line:
+        commands.append(line)
+        line = fileHandle.readline().replace('\r', '').replace('\n', '')
+        
+    fileHandle.close()
+    
+    reply = quad.sendCli(commands, True)
+    
+    for singleReply in reply:
+        print singleReply
 
-    qc = quadComm(MY_QUAD_BLUETOOTH_ADDRESS)
+        
+def runTest():
+    BLUETOOTH_ADDRESS = '20:15:03:31:34:16'
+    COM_PORT = 'COM24'
 
-    if (False == qc.open()):
-        print("Failed connecting!")
+    selection = raw_input('Enter 1 for serial USB.\r\nEnter 2 for serial bluetooth.\r\n>> ')
+
+    if ("1" == selection):
+        qc = usbQuadComm()
+
+        if (False == qc.open(COM_PORT)):
+            print("Failed connecting!")
+            sys.exit(1)
+            
+    elif ("2" == selection):
+        qc = bluetoothQuadComm()
+
+        if (False == qc.open(BLUETOOTH_ADDRESS)):
+            print("Failed connecting!")
+            sys.exit(1)
+    else:
+        print("Not a valid option")
         sys.exit(1)
+
+
 
     print("Connected!")
 
@@ -385,13 +604,14 @@ def test_functionality():
 
     # Uncomment one of these to check functionality.
     # WARNING!! some of them will spin the motors
-
-    #motorsTest(qc)
-    #attitudeReadingsTest(qc)
+    motorsTest(qc)
+    attitudeReadingsTest(qc)
     #sensorsReadingsTest(qc)
     #RCcommandTest(qc)
-
+    #cliTest(qc)
+    #cliGetRelevantParameters(qc)
+    cliCommandsFromFile(qc, "cli_commands.txt")
     qc.close()
 
-if ('__main__' == __name__):
-    test_functionality()
+if ("__main__" == __name__):
+    runTest()
