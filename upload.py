@@ -6,14 +6,14 @@ import sys
 from intelhex import IntelHex
 import stm32loader
 
-def flashSTM32(hexFileName):
+def flashSTM32(port, hexFileName):
     ih=IntelHex()
     ih.loadhex(hexFileName)
     data = ih.tobinstr()
     data = map(lambda c: ord(c), data)
     print "Data len is %d" % len(data)
     conf = {
-        'port': '/dev/ttyUSB0',
+        'port': port,
         'baud': 115200,
         'address': 0x08000000,
         'erase': 1,

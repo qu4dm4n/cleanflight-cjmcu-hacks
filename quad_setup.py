@@ -3,7 +3,7 @@ from quadComm import *
 import time
 from upload import *
 
-CLEANFLIGHT_FIRMWARE_HEX_FILENAME = 'cleanflight_CJMCU_v1.81.hex'
+CLEANFLIGHT_FIRMWARE_HEX_FILENAME = 'cleanflight_CJMCU_v1.8.1.hex'
 
 def configureControlBoard(port):
     qc = usbQuadComm()
@@ -49,7 +49,7 @@ while True:
 
     elif ("2" == selection):
         try:
-            flashSTM32(CLEANFLIGHT_FIRMWARE_HEX_FILENAME)
+            flashSTM32(comPort, CLEANFLIGHT_FIRMWARE_HEX_FILENAME)
         except:
             pass
 
