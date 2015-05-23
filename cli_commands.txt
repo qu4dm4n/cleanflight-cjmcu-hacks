@@ -32,6 +32,7 @@ set i_yawf=0.500
 set align_board_yaw=0
 set d_yaw=5
 set d_yawf=0.050
+set mag_declination=435
 feature MOTOR_STOP
 feature FAILSAFE
 feature RX_MSP

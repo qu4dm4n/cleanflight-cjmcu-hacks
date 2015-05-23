@@ -24,8 +24,8 @@ import sys
 import time
 import struct
 import binascii
-
-
+import serial
+import traceback
 import bluetooth
 
 OUT_MSG_PREFIX = "$M<"
@@ -351,15 +351,15 @@ class usbQuadComm(bluetoothQuadComm):
         self.port = port
         self.baud = baud
 
+
         try:
             self.serialHandle = serial.Serial(port=self.port, baudrate=self.baud, parity=serial.PARITY_NONE, stopbits=serial.STOPBITS_ONE, bytesize=serial.EIGHTBITS, timeout=2)
-            #self.serialHandle.open()
 
-            #if (False == self.serialHandle.isOpen()):
-            #    return False
+            if (False == self.serialHandle.isOpen()):
+                return False
 
-            return True
-        except:
+        except Exception, err:
+            print(traceback.format_exc())
             self.serialHandle = None
             return False
 
@@ -559,8 +559,8 @@ def cliCommandsFromFile(quad, fileName):
 
 
 def runTest():
-    BLUETOOTH_ADDRESS = '20:15:03:31:34:16'
-    COM_PORT = 'COM24'
+    BLUETOOTH_ADDRESS = '20:15:04:13:71:99'
+    COM_PORT = '/dev/ttyUSB0'
 
     selection = raw_input('Enter 1 for serial USB.\r\nEnter 2 for serial bluetooth.\r\n>> ')
 
@@ -604,13 +604,13 @@ def runTest():
 
     # Uncomment one of these to check functionality.
     # WARNING!! some of them will spin the motors
-    motorsTest(qc)
-    attitudeReadingsTest(qc)
+    #motorsTest(qc)
+    #attitudeReadingsTest(qc)
     #sensorsReadingsTest(qc)
     #RCcommandTest(qc)
     #cliTest(qc)
     #cliGetRelevantParameters(qc)
-    cliCommandsFromFile(qc, "cli_commands.txt")
+    #cliCommandsFromFile(qc, "cli_commands.txt")
     qc.close()
 
 if ("__main__" == __name__):
