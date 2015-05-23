@@ -37,6 +37,8 @@ MSP_SET_MOTOR = 214
 MSP_ATTITUDE = 108
 MSP_RAW_IMU = 102
 MSP_SET_RAW_RC = 200
+MSP_ACC_CALIBRATION = 205
+MSP_MAG_CALIBRATION = 206
 
 def packMessage(msg):
     if (dict != type(msg)):
@@ -192,7 +194,6 @@ class bluetoothQuadComm:
             self.recvUntilSentinel("\r\n\r\n")
         return respList
 
-
     def getAPIversion(self):
         if (not self.isConnected()):
             return None
@@ -340,6 +341,35 @@ class bluetoothQuadComm:
 
         return True
 
+    def calibrateMag(self):
+        if (not self.isConnected()):
+            return None
+
+        msg = {}
+
+        msg['command'] = MSP_MAG_CALIBRATION
+        msg['data'] = ''
+        request = packMessage(msg)
+        self.sendData(request)
+
+        time.sleep(30)
+
+        return True
+
+    def calibrateAcc(self):
+        if (not self.isConnected()):
+            return None
+
+        msg = {}
+
+        msg['command'] = MSP_ACC_CALIBRATION
+        msg['data'] = ''
+        request = packMessage(msg)
+        self.sendData(request)
+
+        time.sleep(5)
+
+        return True
 
 class usbQuadComm(bluetoothQuadComm):
     def __init__(self):
@@ -604,13 +634,35 @@ def runTest():
 
     # Uncomment one of these to check functionality.
     # WARNING!! some of them will spin the motors
+
+    #print("Spinning the motors, just for fun")
     #motorsTest(qc)
+
+    #print("Reading attitude")
     #attitudeReadingsTest(qc)
+
+    #print("Reading raw sensor data")
     #sensorsReadingsTest(qc)
+
+    #print("Sending RC commands")
     #RCcommandTest(qc)
+
     #cliTest(qc)
+
+    #print("Retrieving several parameteres")
     #cliGetRelevantParameters(qc)
+
+    #print("Loading commands from file")
     #cliCommandsFromFile(qc, "cli_commands.txt")
+
+    #print("Calibrating accelerometer, place it on a flat steady surface for 5 seconds")
+    #qc.calibrateAcc()
+    #print("Calibration completed")
+
+    print("Calibrating magnetometer, tilt the quad 360 degrees on all axis for 30 seconds")
+    qc.calibrateMag()
+    print("Calibration completed")
+
     qc.close()
 
 if ("__main__" == __name__):
