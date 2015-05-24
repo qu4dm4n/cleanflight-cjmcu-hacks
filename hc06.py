@@ -29,7 +29,10 @@ class hc06Configurator:
     def open(self):
         if (None == self.serialHandle):
             return False
-        self.serialHandle.open()
+        try:
+            self.serialHandle.open()
+        except:
+            pass
 
     def close(self):
         if (None == self.serialHandle):
