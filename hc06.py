@@ -1,5 +1,5 @@
 import serial
-
+import time
 
 HC06_PARITY = serial.PARITY_NONE
 HC06_STOPBITS = serial.STOPBITS_ONE
@@ -82,9 +82,11 @@ class hc06Configurator:
             return False
 
         self.serialHandle.close()
+        time.sleep(2)
         self.baud = CLEANFLIGHT_BAUDRATE
         self.serialHandle = serial.Serial(port=self.port, baudrate=self.baud, parity=HC06_PARITY, stopbits=HC06_STOPBITS, bytesize=HC06_BYTESIZE, timeout=2)
         self.open()
+
 
         self.serialHandle.write('AT')
         if ('OK' == self.serialHandle.read(2)):
@@ -96,7 +98,11 @@ class hc06Configurator:
         for singleRate in optionalBaudrates:
             print "checking rate " + str(singleRate)
             serialHandle = serial.Serial(port=self.port, baudrate=singleRate, parity=HC06_PARITY, stopbits=HC06_STOPBITS, bytesize=HC06_BYTESIZE, timeout=2)
-            serialHandle.open()
+
+            try:
+                serialHandle.open()
+            except:
+                pass
 
             if (not serialHandle.isOpen()):
                 print "Failed isOpen"

@@ -14,7 +14,7 @@ def flashSTM32(port, hexFileName):
     print "Data len is %d" % len(data)
     conf = {
         'port': port,
-        'baud': 115200,
+        'baud': 921600,
         'address': 0x08000000,
         'erase': 1,
         'write': 0,
